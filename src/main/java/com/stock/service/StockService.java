@@ -11,6 +11,7 @@ import com.stock.model.Stock;
 
 @Service
 public interface StockService {
+	
 	List<Stock> getAllStocks();
 	Optional<Stock> getStockBySymbol(String symbol);
 	Stock saveStock(Stock stock);
