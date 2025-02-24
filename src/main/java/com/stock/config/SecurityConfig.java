@@ -34,8 +34,6 @@ public class SecurityConfig {
                 .password("admin123") // Change as needed
                 .roles("ADMIN")
                 .build();
-
-        
         return new InMemoryUserDetailsManager(admin);
     }
 }

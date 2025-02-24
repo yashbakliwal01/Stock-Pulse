@@ -17,7 +17,6 @@ import org.springframework.web.client.RestTemplate;
 import com.stock.model.Stock;
 import com.stock.repository.StockRepository;
 
-
 @Service
 public class StockServiceImpl implements StockService{
 

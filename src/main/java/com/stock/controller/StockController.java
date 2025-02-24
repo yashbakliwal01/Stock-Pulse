@@ -57,7 +57,6 @@ public class StockController {
                 .orElse(ResponseEntity.notFound().build());
     }
     
-    
     @PostMapping
     public Stock addStock(@RequestBody Stock stock) {
         return stockService.saveStock(stock);
