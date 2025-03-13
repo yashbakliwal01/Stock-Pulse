@@ -54,10 +54,11 @@
 
         <!-- Lombok -->
         <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <scope>provided</scope>
-        </dependency>
+    		<groupId>org.projectlombok</groupId>
+    		<artifactId>lombok</artifactId>
+    		<scope>provided</scope>
+		</dependency>
+		
 
         <!-- Spring Boot Security -->
         <dependency>
@@ -90,6 +91,16 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>2.3.0</version>
         </dependency>
+        
+        <dependency>
+    		<groupId>org.springframework.boot</groupId>
+    		<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+		<dependency>
+   			 <groupId>org.springframework.boot</groupId>
+    		 <artifactId>spring-boot-starter-cache</artifactId>
+		</dependency>
+
 
         <!-- Spring Boot Test -->
         <dependency>
