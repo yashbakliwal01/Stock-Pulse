@@ -5,19 +5,25 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
+
 import com.stock.model.Stock;
 import com.stock.repository.StockRepository;
 
 @Service
+@Transactional
 public class StockServiceImpl implements StockService{
 
 	@Autowired
@@ -36,7 +42,9 @@ public class StockServiceImpl implements StockService{
 	}
 
 	
+	// Cache the result for future calls
 	@Override
+	@Cacheable(value = "stocksCache")
 	public List<Stock> getAllStocks() {
 		return stockRepository.findAll();
 	}
@@ -46,7 +54,10 @@ public class StockServiceImpl implements StockService{
 		return stockRepository.findBySymbol(symbol);
 	}
 
+	
+	// When a new stock is added, clear cache so fresh data is fetched
 	@Override
+	@CacheEvict(value = "stocksCache", allEntries = true)
 	public Stock saveStock(Stock stock) {
 		return stockRepository.save(stock);
 	}
