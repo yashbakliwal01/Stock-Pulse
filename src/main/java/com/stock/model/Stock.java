@@ -9,23 +9,24 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
-import lombok.ToString;
 
-
-@Getter
-@Setter
+@Data  // Includes @Getter, @Setter, @ToString, @EqualsAndHashCode
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString
-@EqualsAndHashCode
 @Entity
 @Table(name = "stocks")
 public class Stock {
 	
+	public BigDecimal getPrice() {
+		return price;
+	}
+
+	public void setPrice(BigDecimal price) {
+		this.price = price;
+	}
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -37,10 +38,17 @@ public class Stock {
 	private String companyName;
 	
 	@Column(nullable = false)
-    private BigDecimal price;	
-	
-	public BigDecimal getPrice() {
-	    return this.price;
+    private BigDecimal price;
+
+	public String getSymbol() {
+		return symbol;
 	}
+
+	public void setSymbol(String symbol) {
+		this.symbol = symbol;
+	}	
+	
+	
+	
 
 }
