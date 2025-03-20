@@ -10,30 +10,43 @@ import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
-import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 
 @Configuration
 @EnableCaching
 public class RedisConfig {
-	
-	@Bean
-	public RedisConnectionFactory redisConnectionFactory() {
+
+    @Bean
+    public RedisConnectionFactory redisConnectionFactory() {
         return new LettuceConnectionFactory();
     }
-	
-	
-	//// Converts Java objects to JSON for storing in Redis and back to Java objects when retrieving.
-	//serialization used by redis at last point
-	@Bean
-	public CacheManager cacheManager(RedisConnectionFactory redisConnectionFactory) {
-		RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
-											.entryTtl(Duration.ofMinutes(10))
-											.disableCachingNullValues()
-											.serializeValuesWith(RedisSerializationContext.SerializationPair
-																	.fromSerializer(new GenericJackson2JsonRedisSerializer()));
-		//GenericJackson2JsonRedisSerializer is used to handle the conversion.
-		return RedisCacheManager.builder().cacheDefaults(config).build();
-		
-	}
+
+    @Bean
+    public CacheManager cacheManager(RedisConnectionFactory redisConnectionFactory) {
+        // Configure ObjectMapper for Redis serialization
+        ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.activateDefaultTyping(
+                BasicPolymorphicTypeValidator.builder()
+                        .allowIfBaseType(Object.class)
+                        .build(),
+                ObjectMapper.DefaultTyping.EVERYTHING
+        );
+
+        // Use Jackson2JsonRedisSerializer instead of GenericJackson2JsonRedisSerializer
+        Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<>(Object.class);
+        serializer.setObjectMapper(objectMapper);
+
+        RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
+                .entryTtl(Duration.ofMinutes(10))
+                .disableCachingNullValues()
+                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(serializer));
+
+        return RedisCacheManager.builder(redisConnectionFactory).cacheDefaults(config).build();
+    }
 }

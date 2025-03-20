@@ -1,16 +1,21 @@
 package com.stock.controller;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.stock.exception.StockNotFoundException;
 import com.stock.model.Stock;
 import com.stock.service.StockService;
 
@@ -28,19 +33,35 @@ public class StockController {
     
     
     
-    @GetMapping(name = "/getAllStocksList")
-    @Cacheable(value = "stocksCache")		//Caches data in Redis.
-    public List<Stock> getAllStocks() {
-        return stockService.getAllStocks();
+    @GetMapping("/getAllStocksList")
+    public ResponseEntity<List<Stock>> getAllStocks() {
+        List<Stock> stocks =  stockService.getAllStocks();
+        return ResponseEntity.ok(stocks);
     }
     
     
-    //cacheEvict>>clears cache when a new stock is added.
     @PostMapping("/add")
-    @CacheEvict(value = "stocksCache", allEntries = true)
-	public Stock addStock(@RequestBody Stock stock) {
-    	return stockService.saveStock(stock);
-	}
+    public ResponseEntity<?> addStock(@RequestBody Stock stock) {
+        try {
+            if (stock.getPrice() == null) {
+                return ResponseEntity.badRequest().body("Price cannot be null");
+            }
+            
+            stockService.saveStock(stock);
+            return ResponseEntity.ok("Stock added successfully!");
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(e.getMessage());
+        }
+    }
+    
+    @PutMapping("/update")
+    public ResponseEntity<String> updateStock(@RequestParam String symbol, @RequestParam BigDecimal price){
+    	Stock stock = stockService.getStockBySymbol(symbol)
+    							  .orElseThrow(()->new StockNotFoundException("Stock with symbol " + symbol + " not found."));
+    	stock.setPrice(price);
+    	stockService.saveStock(stock);
+    	return ResponseEntity.ok("Stock with symbol " + symbol + " updated successfully.");
+    }
     
 //    @GetMapping("/indian-prices")
 //    public ResponseEntity<Map<String, BigDecimal>> getIndianStockPrices() {

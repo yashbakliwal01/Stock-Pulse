@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import com.stock.exception.StockAlreadyExistsException;
+import com.stock.exception.StockNotFoundException;
 import com.stock.model.Stock;
 import com.stock.repository.StockRepository;
 
@@ -41,13 +43,12 @@ public class StockServiceImpl implements StockService{
 		this.restTemplate = new RestTemplate();
 	}
 
-	
-	// Cache the result for future calls
 	@Override
 	@Cacheable(value = "stocksCache")
-	public List<Stock> getAllStocks() {
-		return stockRepository.findAll();
+	public List<Stock> getAllStocks() {  // Return only the data
+	    return stockRepository.findAll();
 	}
+
 
 	@Override
 	public Optional<Stock> getStockBySymbol(String symbol) {
@@ -59,6 +60,10 @@ public class StockServiceImpl implements StockService{
 	@Override
 	@CacheEvict(value = "stocksCache", allEntries = true)
 	public Stock saveStock(Stock stock) {
+		Optional<Stock> existingStock = stockRepository.findBySymbol(stock.getSymbol());
+		if(existingStock.isPresent()) {
+			throw new StockAlreadyExistsException("Stock with symbol " + stock.getSymbol()+" already exists.");
+		}
 		return stockRepository.save(stock);
 	}
 
@@ -68,9 +73,13 @@ public class StockServiceImpl implements StockService{
 	}
 
 	@Override
+	@CacheEvict(value = "stocksCache", allEntries = true)
+	@Transactional
     public void updateStockPrices() {
         List<Stock> stocks = stockRepository.findAll();
-        
+        if(stocks.isEmpty()) {
+        	throw new StockNotFoundException("No stocks found to update prices.");
+        }
         for (Stock stock : stocks) {
             BigDecimal newPrice = fetchStockPrice(stock.getSymbol());
 
@@ -83,6 +92,8 @@ public class StockServiceImpl implements StockService{
             }
         }
     }
+	
+	
 
     private BigDecimal fetchStockPrice(String symbol) {
         if (isIndianStock(symbol)) {

@@ -1,6 +1,12 @@
 package com.stock.model;
 
 import java.math.BigDecimal;
+import java.util.Currency;
+import java.util.Locale;
+
+import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.stock.constants.MarketConstants;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,21 +18,13 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Data  // Includes @Getter, @Setter, @ToString, @EqualsAndHashCode
+@Data  // Lombok generates getter, setter, toString, equals, hashCode
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
 @Table(name = "stocks")
 public class Stock {
 	
-	public BigDecimal getPrice() {
-		return price;
-	}
-
-	public void setPrice(BigDecimal price) {
-		this.price = price;
-	}
-
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
@@ -38,17 +36,26 @@ public class Stock {
 	private String companyName;
 	
 	@Column(nullable = false)
-    private BigDecimal price;
+	@JsonFormat(shape = JsonFormat.Shape.STRING)
+	private BigDecimal price;
+	
+	@Column(nullable = false)
+	private String market;
+	
+	@JsonProperty("price")
+	public String getFormattedPrice() {
+	    if (market == null || price == null) {
+	        return price != null ? price.toString() : "0.00";
+	    }
 
-	public String getSymbol() {
-		return symbol;
+	    String currencyCode = MarketConstants.MARKET_TO_CURRENCY.getOrDefault(market.toUpperCase(), "USD");
+	    
+	    try {
+	        Currency currency = Currency.getInstance(currencyCode);
+	        String currencySymbol = currency.getSymbol(Locale.getDefault());
+	        return currencySymbol + " " + price;
+	    } catch (IllegalArgumentException e) {
+	        return "$ " + price;  // Default to USD if currency not found
+	    }
 	}
-
-	public void setSymbol(String symbol) {
-		this.symbol = symbol;
-	}	
-	
-	
-	
-
 }
