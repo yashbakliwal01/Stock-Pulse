@@ -59,7 +59,8 @@ public class StockController {
     	Stock stock = stockService.getStockBySymbol(symbol)
     							  .orElseThrow(()->new StockNotFoundException("Stock with symbol " + symbol + " not found."));
     	stock.setPrice(price);
-    	stockService.saveStock(stock);
+    	stockService.saveStock(stock);	
+    	
     	return ResponseEntity.ok("Stock with symbol " + symbol + " updated successfully.");
     }
     
