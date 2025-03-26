@@ -11,4 +11,7 @@ import com.stock.model.Stock;
 public interface StockRepository extends JpaRepository<Stock, Long>{
 	
 	Optional<Stock> findBySymbol(String symbol);
+	// Search stock by symbol (e.g., INFY.NSE) or by name (e.g., Tata Motors)
+    Optional<Stock> findBySymbolIgnoreCase(String symbol);
+    Optional<Stock> findByCompanyNameIgnoreCase(String companyName); 
 }
