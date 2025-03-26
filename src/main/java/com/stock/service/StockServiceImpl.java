@@ -1,19 +1,17 @@
 package com.stock.service;
 
 import java.math.BigDecimal;
-import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,9 +30,15 @@ public class StockServiceImpl implements StockService{
 	private StockRepository stockRepository;
 	
 	private final RestTemplate restTemplate;
-	private static final String API_KEY = "ITNUWJRO8X13STTK";
-    private static final String API_URL = "https://www.alphavantage.co/query";
 	
+	private static final String TWELVEDATA_API_KEY = "755fbb678f8b42879ba885e8ecd237e1";
+	private static final String TWELVEDATA_API_URL =  "https://api.twelvedata.com/quote?symbol=";
+	
+//	 private static final String NSE_API_URL = "https://www.nseindia.com/api/quote-equity?symbol=";
+//	 
+//    private static final String ALPHA_VANTAGE_API_URL  = "https://www.alphavantage.co/query";
+//    private static final String ALPHA_VANTAGE_API_KEY = "ITNUWJRO8X13STTK";
+//    	
     private static final Logger LOGGER = LoggerFactory.getLogger(StockServiceImpl.class);
 
 	public StockServiceImpl(StockRepository stockRepository) {
@@ -49,13 +53,6 @@ public class StockServiceImpl implements StockService{
 	    return stockRepository.findAll();
 	}
 
-
-	@Override
-	public Optional<Stock> getStockBySymbol(String symbol) {
-		return stockRepository.findBySymbol(symbol);
-	}
-
-	
 	// When a new stock is added, clear cache so fresh data is fetched
 	@Override
 	@CacheEvict(value = "stocksCache", allEntries = true)
@@ -73,82 +70,102 @@ public class StockServiceImpl implements StockService{
 	}
 
 	@Override
-	@CacheEvict(value = "stocksCache", allEntries = true)
+	@CacheEvict(value = "stocksCache", allEntries = true)  // Clears cache after update
 	@Transactional
-    public void updateStockPrices() {
-        List<Stock> stocks = stockRepository.findAll();
-        if(stocks.isEmpty()) {
-        	throw new StockNotFoundException("No stocks found to update prices.");
-        }
-        for (Stock stock : stocks) {
-            BigDecimal newPrice = fetchStockPrice(stock.getSymbol());
+	public Stock updateStock(String symbol, BigDecimal price) {
+	    Stock stock = stockRepository.findBySymbol(symbol)
+	        .orElseThrow(() -> new StockNotFoundException("Stock with symbol " + symbol + " not found."));
 
-            if (newPrice != null) {
-                stock.setPrice(newPrice);
-                stockRepository.save(stock);
-                LOGGER.info("Updated stock: " + stock.getSymbol() + " - New Price: " + newPrice);
-            } else {
-                LOGGER.warn("Failed to fetch stock price for: " + stock.getSymbol());
-            }
-        }
-    }
+	    stock.setPrice(price);
+	    return stockRepository.save(stock);
+	}
+
+
+	@Override
+	public Optional<Stock> getStockBySymbol(String symbol) {
+		return stockRepository.findBySymbol(symbol);
+	}
+
+   //--------------------- 
+	// Caching stock details
+    private final Map<String, Map<String, Object>> stockCache = new ConcurrentHashMap<>();
+
 	
-	
-
-    private BigDecimal fetchStockPrice(String symbol) {
-        if (isIndianStock(symbol)) {
-            return fetchStockPriceFromNSE(symbol);
-        } else {
-            return fetchStockPriceFromAlphaVantage(symbol);
+	// Fetch stock price from Twelve Data API (Automatically detects NSE or Global)
+    @SuppressWarnings("all")
+    public Map<String, Object> fetchStockDetailsFromTwelveData(String symbol) {
+        // Check cache first
+        if (stockCache.containsKey(symbol)) {
+            LOGGER.info("Fetching stock details from cache for {}", symbol);
+            return stockCache.get(symbol);
         }
-    }
 
-    private boolean isIndianStock(String symbol) {
-        List<String> indianStocks = Arrays.asList("RELIANCE", "TCS", "INFY", "HDFCBANK", "SBIN");
-        return indianStocks.contains(symbol.toUpperCase());
-    }
+        boolean hasExchangeSuffix = symbol.contains(":"); // Check if user provided exchange
 
-    // ✅ Fetch from NSE India API
-    private BigDecimal fetchStockPriceFromNSE(String symbol) {
-        String url = "https://www.nseindia.com/api/quote-equity?symbol=" + symbol;
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("User-Agent", "Mozilla/5.0");
-        headers.set("Accept", "application/json");
-        headers.set("Referer", "https://www.nseindia.com");
+        // Check if the stock is Indian (NSE)
+        boolean isIndian = isIndianStock(symbol);
+        String marketSuffix = (isIndian && !hasExchangeSuffix) ? ":NSE" : ""; // Append ":NSE" only for Indian stocks without an exchange suffix
 
-        HttpEntity<String> entity = new HttpEntity<>(headers);
-
-        try {
-            ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.GET, entity, Map.class);
-            if (response.getBody() != null && response.getBody().containsKey("info")) {
-                Map<String, Object> info = (Map<String, Object>) response.getBody().get("info");
-                return new BigDecimal(info.get("lastPrice").toString());
-            }
-        } catch (Exception e) {
-            LOGGER.warn("Error fetching NSE price for " + symbol + ": " + e.getMessage());
-        }
-        return null;
-    }
-
-    // Fetch from Alpha Vantage API for US stocks
-    private BigDecimal fetchStockPriceFromAlphaVantage(String symbol) {
-        String url = API_URL + "?function=GLOBAL_QUOTE&symbol=" + symbol + "&apikey=" + API_KEY;
+        // Construct API URL
+        String url = TWELVEDATA_API_URL + symbol + marketSuffix + "&apikey=" + TWELVEDATA_API_KEY;
+        LOGGER.info("Fetching stock details from URL: {}", url);
 
         try {
             ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
-            if (response.getBody() != null && response.getBody().containsKey("Global Quote")) {
-                Map<String, Object> quote = (Map<String, Object>) response.getBody().get("Global Quote");
-                return new BigDecimal(quote.get("05. price").toString());
+            LOGGER.info("API Response for {}: {}", symbol, response.getBody());
+
+            if (response.getBody() != null) {
+                if (response.getBody().containsKey("status") && "error".equals(response.getBody().get("status"))) {
+                    LOGGER.warn("Error fetching stock details: {}", response.getBody().get("message"));
+                    return null;
+                }
+
+                // Extracting important stock details
+                Map<String, Object> stockData = new HashMap<>();
+                stockData.put("symbol", symbol + marketSuffix);
+                stockData.put("name", response.getBody().getOrDefault("name", "N/A"));
+                stockData.put("exchange", response.getBody().getOrDefault("exchange", "Unknown"));
+                stockData.put("currency", response.getBody().getOrDefault("currency", isIndian ? "INR" : "USD")); // Ensure INR for Indian stocks
+                stockData.put("market_price", response.getBody().getOrDefault("price", "N/A"));
+                stockData.put("day_high", response.getBody().getOrDefault("high", "N/A"));
+                stockData.put("day_low", response.getBody().getOrDefault("low", "N/A"));
+                stockData.put("change", response.getBody().getOrDefault("change", "N/A"));
+                stockData.put("percent_change", response.getBody().getOrDefault("percent_change", "N/A"));
+                stockData.put("timestamp", response.getBody().getOrDefault("timestamp", "N/A"));
+
+                // Store in cache
+                stockCache.put(symbol + marketSuffix, stockData);
+
+                return stockData;
             }
         } catch (Exception e) {
-            LOGGER.warn("Error fetching Alpha Vantage price for " + symbol + ": " + e.getMessage());
+            LOGGER.error("Error fetching stock details for {}: {}", symbol, e.getMessage());
         }
         return null;
     }
-    
-    @Override
-    public BigDecimal getStockPriceFromNSE(String symbol) {
-        return fetchStockPriceFromNSE(symbol);  
+//    private String formatSymbol(String symbol) {
+//		// TODO Auto-generated method stub
+//    	
+//    	if(symbol.contains(".") || symbol.contains(":")) return symbol;
+//    	if(isIndianStock(symbol)) return symbol.toUpperCase()+".NSE";
+//    	return symbol.toUpperCase();
+//	}
+
+	// Check if stock is Indian based on NSE availability via Twelve Data API
+    public boolean isIndianStock(String symbol) {
+        String url = TWELVEDATA_API_URL + symbol + ".NSE&apikey=" + TWELVEDATA_API_KEY;
+        try {
+            ResponseEntity<Map> response = restTemplate.getForEntity(url, Map.class);
+            return response.getBody() != null && response.getBody().containsKey("symbol");
+        } catch (Exception e) {
+            LOGGER.warn("Stock " + symbol + " not found in Twelve Data API: " + e.getMessage());
+            return false;
+        }
     }
 
+//	@Override
+//	public Optional<Stock> getStockBySymbolOrName(String query) {
+//		return stockRepository.findBySymbolIgnoreCase(query)
+//				.or(()->stockRepository.findByCompanyNameIgnoreCase(query));
+//	}
 }
