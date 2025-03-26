@@ -29,18 +29,14 @@ public class RedisConfig {
     @Bean
     public CacheManager cacheManager(RedisConnectionFactory redisConnectionFactory) {
         // Configure ObjectMapper for Redis serialization
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.activateDefaultTyping(
-                BasicPolymorphicTypeValidator.builder()
-                        .allowIfBaseType(Object.class)
-                        .build(),
-                ObjectMapper.DefaultTyping.EVERYTHING
-        );
+    	ObjectMapper objectMapper = new ObjectMapper();
+    	objectMapper.activateDefaultTyping(
+    	    objectMapper.getPolymorphicTypeValidator(), 
+    	    ObjectMapper.DefaultTyping.NON_FINAL
+    	);
 
-        // Use Jackson2JsonRedisSerializer instead of GenericJackson2JsonRedisSerializer
-        Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<>(Object.class);
-        serializer.setObjectMapper(objectMapper);
-
+    	Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<>(objectMapper, Object.class);
+    	
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
                 .entryTtl(Duration.ofMinutes(10))
                 .disableCachingNullValues()
